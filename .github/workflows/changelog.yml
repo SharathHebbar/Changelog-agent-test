@@ -1,0 +1,45 @@
+name: Changelog Writer
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'CHANGELOG.md'  # prevent infinite loop
+
+permissions:
+  contents: write
+
+jobs:
+  update-changelog:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # need previous commit for diff
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install anthropic
+
+      - name: Generate changelog entry
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          COMMIT_SHA: ${{ github.sha }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          AUTHOR: ${{ github.event.head_commit.author.name }}
+        run: python scripts/generate_changelog.py
+
+      - name: Commit updated CHANGELOG.md
+        run: |
+          git config user.name  "changelog-bot"
+          git config user.email "changelog-bot@users.noreply.github.com"
+          git add CHANGELOG.md
+          git diff --cached --quiet || git commit -m "docs: update CHANGELOG.md [skip ci]"
+          git push
